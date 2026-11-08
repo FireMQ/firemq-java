@@ -289,6 +289,26 @@ mvn -B -DskipTests package
 firemq-conformance run --driver "java -cp firemq-conformance-driver/target/firemq-conformance-driver.jar io.github.firemq.conformance.Driver"
 ```
 
+## Releasing
+
+Pushing a tag such as `v0.1.0` runs `.github/workflows/publish.yml`, which deploys `firemq-parent`, `firemq-client` and `firemq-kotlin` to Maven Central through the Sonatype Central Portal. The tag must match the version in `pom.xml`. To publish a tag that already exists, run the workflow by hand and pass the tag.
+
+The workflow needs four secrets and skips the deploy until all of them are set:
+
+| Secret | Contents |
+|---|---|
+| `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD` | A Central Portal user token for the `io.github.firemq` namespace. |
+| `MAVEN_GPG_PRIVATE_KEY` | The ASCII-armored private signing key. Its public key must be on a key server Central checks, such as `keyserver.ubuntu.com`. |
+| `MAVEN_GPG_PASSPHRASE` | The passphrase of that key. |
+
+The `release` profile adds the sources and javadoc jars, the GPG signatures and the Central upload. To check the release artifacts locally without signing or uploading:
+
+```bash
+mvn -B -P release -Dgpg.skip -DskipTests -DskipUpload=true deploy
+```
+
+The bundle that would be uploaded is written to `target/central-publishing/central-bundle.zip`.
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).

@@ -84,4 +84,39 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <!--
+      Maven Central requires a javadoc jar, and the javadoc tool cannot read Kotlin. This
+      module ships a javadoc jar that holds only a README pointing to the sources jar,
+      which carries the KDoc comments that IDEs show.
+    -->
+    <profile>
+      <id>release</id>
+      <properties>
+        <maven.javadoc.skip>true</maven.javadoc.skip>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-jar-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>javadoc-jar</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+                <configuration>
+                  <classifier>javadoc</classifier>
+                  <classesDirectory>${project.basedir}/src/main/javadoc</classesDirectory>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>
