@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - run: mvn -B verify
+
+  broker:
+    name: Conformance, integration tests and examples
+    runs-on: ubuntu-latest
+    env:
+      FIREMQ_URL: fire://guest:guest@localhost:5673
+      FIREMQ_TLS_URL: fires://guest:guest@localhost:5674
+      FIREMQ_TLS_CA: ${{ github.workspace }}/certs/ca.pem
+    steps:
+      - uses: actions/checkout@v5
+
+      # Pinned to the commit that adds the conformance runner (FireMQ/firemq#38).
+      # The ref moves to main once FireMQ/firemq#38 merges.
+      - uses: actions/checkout@v5
+        with:
+          repository: FireMQ/firemq
+          ref: b90a2ff9bda15a398c6957bfb291e4a9db9957ab
+          path: firemq
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: firemq
+
+      - name: Build FireMQ and the conformance runner
+        working-directory: firemq
+        run: cargo build -p firemq -p firemq-conformance
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build the driver and the examples
+        run: mvn -B -DskipTests package
+
+      - name: Conformance suite
+        run: >
+          firemq/target/debug/firemq-conformance run
+          --driver "java -cp firemq-conformance-driver/target/firemq-conformance-driver.jar io.github.firemq.conformance.Driver"
+
+      - name: Test certificates
+        run: |
+          mkdir certs && cd certs
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -keyout ca.key -out ca.pem -subj "/CN=FireMQ test CA" \
+            -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign"
+          openssl req -newkey rsa:2048 -nodes -keyout server.key -out server.csr -subj "/CN=localhost"
+          printf "subjectAltName=DNS:localhost,IP:127.0.0.1\nextendedKeyUsage=serverAuth\n" > ext.cnf
+          openssl x509 -req -in server.csr -CA ca.pem -CAkey ca.key -CAcreateserial -days 1 -out server.pem -extfile ext.cnf
+
+      - name: Start FireMQ
+        run: |
+          firemq/target/debug/firemq --ephemeral --tls-cert certs/server.pem --tls-key certs/server.key > firemq.log 2>&1 &
+          for i in $(seq 1 100); do
+            if (echo > /dev/tcp/127.0.0.1/5673) 2>/dev/null && (echo > /dev/tcp/127.0.0.1/5674) 2>/dev/null; then
+              exit 0
+            fi
+            sleep 0.2
+          done
+          cat firemq.log
+          exit 1
+
+      - name: Integration tests
+        run: mvn -B verify
+
+      - name: Examples
+        run: |
+          for example in HelloWorld WorkQueues PublishSubscribe Routing Topics Rpc; do
+            echo "::group::$example"
+            java -cp firemq-examples/target/firemq-examples.jar "io.github.firemq.examples.$example"
+            echo "::endgroup::"
+          done
+
+      - name: Broker log
+        if: failure()
+        run: cat firemq.log
