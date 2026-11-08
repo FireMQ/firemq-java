@@ -14,9 +14,13 @@
   <name>FireMQ conformance driver</name>
   <description>Driver for the FireMQ SDK conformance suite, written with the Java client</description>
 
+  <!-- Not published. The release profile also excludes this module from the Central bundle. -->
   <properties>
     <maven.install.skip>true</maven.install.skip>
     <maven.deploy.skip>true</maven.deploy.skip>
+    <maven.source.skip>true</maven.source.skip>
+    <maven.javadoc.skip>true</maven.javadoc.skip>
+    <gpg.skip>true</gpg.skip>
   </properties>
 
   <dependencies>

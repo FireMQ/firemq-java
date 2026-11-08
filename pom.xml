@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd"
+         child.project.url.inherit.append.path="false">
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>io.github.firemq</groupId>
@@ -20,10 +21,28 @@
     </license>
   </licenses>
 
-  <scm>
+  <developers>
+    <developer>
+      <id>firemq</id>
+      <name>FireMQ maintainers</name>
+      <organization>FireMQ</organization>
+      <organizationUrl>https://github.com/FireMQ</organizationUrl>
+    </developer>
+  </developers>
+
+  <!-- The modules inherit url and scm as they are, without their artifactId appended. -->
+  <scm child.scm.url.inherit.append.path="false"
+       child.scm.connection.inherit.append.path="false"
+       child.scm.developerConnection.inherit.append.path="false">
     <url>https://github.com/FireMQ/firemq-java</url>
     <connection>scm:git:https://github.com/FireMQ/firemq-java.git</connection>
+    <developerConnection>scm:git:git@github.com:FireMQ/firemq-java.git</developerConnection>
   </scm>
+
+  <issueManagement>
+    <system>GitHub</system>
+    <url>https://github.com/FireMQ/firemq-java/issues</url>
+  </issueManagement>
 
   <modules>
     <module>firemq-client</module>
@@ -118,7 +137,104 @@
           <artifactId>kotlin-maven-plugin</artifactId>
           <version>${kotlin.version}</version>
         </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-source-plugin</artifactId>
+          <version>3.4.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-javadoc-plugin</artifactId>
+          <version>3.12.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-gpg-plugin</artifactId>
+          <version>3.2.8</version>
+        </plugin>
+        <plugin>
+          <groupId>org.sonatype.central</groupId>
+          <artifactId>central-publishing-maven-plugin</artifactId>
+          <version>0.12.0</version>
+        </plugin>
       </plugins>
     </pluginManagement>
   </build>
+
+  <profiles>
+    <!--
+      Release to Maven Central: mvn -P release deploy
+
+      Builds sources and javadoc jars, signs every artifact with GPG and uploads the bundle
+      to the Sonatype Central Portal. Signing uses the Bouncy Castle signer, so no gpg
+      agent is needed: it reads the ASCII-armored private key from MAVEN_GPG_KEY and its
+      passphrase from MAVEN_GPG_PASSPHRASE. The upload uses the credentials of the server
+      with id "central" in settings.xml (a Central Portal user token).
+
+      Only firemq-parent, firemq-client and firemq-kotlin are published. To build the
+      bundle without signing or uploading it, into target/central-publishing:
+      mvn -P release -Dgpg.skip -DskipUpload=true deploy
+    -->
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals>
+                  <goal>jar-no-fork</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+                <configuration>
+                  <signer>bc</signer>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+              <autoPublish>true</autoPublish>
+              <waitUntil>validated</waitUntil>
+              <excludeArtifacts>
+                <artifact>firemq-conformance-driver</artifact>
+                <artifact>firemq-examples</artifact>
+              </excludeArtifacts>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>
